@@ -1,6 +1,6 @@
 # goodlinks-publisher
 
-Pubblica automaticamente gli articoli taggati `pubblica` in [GoodLinks](https://goodlinks.app)
+Pubblica automaticamente gli articoli taggati `publish` in [GoodLinks](https://goodlinks.app)
 su Mastodon, Telegram e sul blog Hugo. Sostituisce la vecchia pipeline basata su
 Readwise (`readwise-to-mastodon` + `readwise-to-telegram`).
 
@@ -8,7 +8,7 @@ Readwise (`readwise-to-mastodon` + `readwise-to-telegram`).
 
 Lo script gira sul Mac ogni ora via `launchd`:
 
-1. legge l'[API locale di GoodLinks](https://goodlinks.app/api/) (`localhost:9428`) filtrando per tag `pubblica`;
+1. legge l'[API locale di GoodLinks](https://goodlinks.app/api/) (`localhost:9428`) filtrando per tag `publish`;
 2. confronta gli articoli trovati con lo stato in `published_ids.json` (mappa `id articolo → output completati`);
 3. per ogni articolo nuovo fa fan-out sui tre output:
    - **Mastodon** — post con template configurabile;

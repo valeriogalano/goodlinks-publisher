@@ -144,7 +144,7 @@ def main():
         sys.exit(1)
 
     if not links:
-        logger.debug("Nessun articolo con tag 'pubblica' trovato.")
+        logger.debug("Nessun articolo con tag 'publish' trovato.")
         return
 
     state = load_state()

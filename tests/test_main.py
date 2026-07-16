@@ -157,6 +157,29 @@ class TestTelegramMultiChat:
             assert "tutte le chat" in str(e)
 
 
+class TestGoodLinks:
+    def test_paginated_response_is_flattened(self, monkeypatch):
+        monkeypatch.setenv("GOODLINKS_TOKEN", "token")
+        from goodlinks import GoodLinks
+
+        pages = [
+            {"data": [{"id": "1"}, {"id": "2"}], "hasMore": True},
+            {"data": [{"id": "3"}], "hasMore": False},
+        ]
+        offsets = []
+
+        def fake_get(url, headers, params):
+            offsets.append(params["offset"])
+            response = MagicMock()
+            response.json.return_value = pages.pop(0)
+            return response
+
+        monkeypatch.setattr("goodlinks.requests.get", fake_get)
+        links = GoodLinks().get_links_to_publish()
+        assert [l["id"] for l in links] == ["1", "2", "3"]
+        assert offsets == [0, 2]
+
+
 class TestHugoHelper:
     def test_publish_is_idempotent_on_existing_file(self, tmp_path, monkeypatch):
         monkeypatch.setenv("BLOG_REPO_PATH", str(tmp_path))
