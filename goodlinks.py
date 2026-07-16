@@ -36,3 +36,20 @@ class GoodLinks:
 
         logger.debug(f"Link trovati con tag '{tag}': {len(links)}")
         return links
+
+    def get_first_note(self, link_id: str) -> str:
+        """Ritorna la prima nota (highlight più vecchio) presa sull'articolo.
+
+        Stringa vuota se l'articolo non ha highlight.
+        """
+        url = f"{self.api_url}/highlights"
+        headers = {"Authorization": f"Bearer {self.token}"}
+
+        response = requests.get(url, headers=headers, params={"linkID": link_id})
+        response.raise_for_status()
+
+        highlights = response.json()["data"]
+        if not highlights:
+            return ""
+        first = min(highlights, key=lambda h: h.get("createdAt", ""))
+        return first.get("content") or ""

@@ -36,8 +36,8 @@ class TestState:
         assert json.loads(state_file.read_text()) == {"1": ["mastodon"]}
 
 
-def make_article(article_id="1", title="Titolo", url="https://example.com", summary="Note"):
-    return {"id": article_id, "title": title, "url": url, "summary": summary}
+def make_article(article_id="1", title="Titolo", url="https://example.com", notes="Note"):
+    return {"id": article_id, "title": title, "url": url, "notes": notes}
 
 
 class TestProcessLinks:
@@ -116,7 +116,7 @@ class TestProcessLinks:
     def test_empty_fields_handled(self, tmp_path, monkeypatch):
         state = self.patch_state(tmp_path, monkeypatch)
         publishers = {"mastodon": self.make_publisher("mastodon")}
-        article = {"id": "2", "title": None, "url": None, "summary": None}
+        article = {"id": "2", "title": None, "url": None, "notes": None}
         failures = process_links([article], state, publishers)
         assert failures == 0
         assert self.calls == [("mastodon", "", "", "")]
@@ -182,7 +182,41 @@ class TestFilterRecent:
         assert len(filter_recent([{"id": "1", "addedAt": self.iso(2)}])) == 1
 
 
+class TestRenderTemplate:
+    def test_empty_notes_leave_no_blank_gap(self):
+        from main import render_template
+        out = render_template("{title}\n{link}\n\n{notes}\n\n#news",
+                              title="T", link="L", notes="")
+        assert out == "T\nL\n\n#news"
+
+    def test_filled_notes_kept(self):
+        from main import render_template
+        out = render_template("{title}\n\n{notes}", title="T", notes="la mia nota")
+        assert out == "T\n\nla mia nota"
+
+
 class TestGoodLinks:
+    def test_first_note_is_oldest_highlight(self, monkeypatch):
+        monkeypatch.setenv("GOODLINKS_TOKEN", "token")
+        from goodlinks import GoodLinks
+
+        payload = {"data": [
+            {"content": "nota recente", "createdAt": "2026-06-14T06:01:48Z"},
+            {"content": "prima nota", "createdAt": "2026-06-14T05:53:22Z"},
+        ]}
+        monkeypatch.setattr(
+            "goodlinks.requests.get",
+            lambda url, headers, params: MagicMock(status_code=200, json=lambda: payload))
+        assert GoodLinks().get_first_note("abc") == "prima nota"
+
+    def test_first_note_empty_without_highlights(self, monkeypatch):
+        monkeypatch.setenv("GOODLINKS_TOKEN", "token")
+        from goodlinks import GoodLinks
+        monkeypatch.setattr(
+            "goodlinks.requests.get",
+            lambda url, headers, params: MagicMock(status_code=200, json=lambda: {"data": []}))
+        assert GoodLinks().get_first_note("abc") == ""
+
     def test_paginated_response_is_flattened(self, monkeypatch):
         monkeypatch.setenv("GOODLINKS_TOKEN", "token")
         from goodlinks import GoodLinks
