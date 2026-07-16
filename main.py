@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from logging.handlers import RotatingFileHandler
@@ -90,6 +91,22 @@ def filter_recent(links: list) -> list:
         if datetime.fromisoformat(timestamp) >= cutoff:
             recent.append(link)
     return recent
+
+
+def notify_failure(message: str) -> None:
+    """Notifica macOS in caso di errore: launchd non avvisa nessuno da solo.
+
+    ponytail: solo notifica locale; se serve raggiungibilità ovunque,
+    aggiungere l'invio Telegram su una chat admin.
+    """
+    safe = message.replace('"', "'")
+    try:
+        subprocess.run(
+            ["osascript", "-e",
+             f'display notification "{safe}" with title "goodlinks-publisher"'],
+            check=False)
+    except Exception:
+        pass  # la notifica non deve mai far fallire lo script
 
 
 def render_template(template: str, **placeholders) -> str:
@@ -187,6 +204,7 @@ def main():
         # GoodLinks non raggiungibile (app chiusa o API disabilitata):
         # errore loggato, exit senza toccare lo stato.
         logger.error(f"Impossibile leggere l'API GoodLinks: {e}")
+        notify_failure("GoodLinks non raggiungibile: app chiusa o API disabilitata?")
         sys.exit(1)
 
     if not links:
@@ -198,6 +216,7 @@ def main():
 
     if failures:
         logger.error(f"Esecuzione terminata con {failures} pubblicazioni fallite.")
+        notify_failure(f"{failures} pubblicazioni fallite — vedi logs/goodlinks-publisher.log")
         sys.exit(1)
 
     logger.debug("Bye!")
