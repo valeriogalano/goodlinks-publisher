@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from logging.handlers import RotatingFileHandler
@@ -91,6 +92,11 @@ def filter_recent(links: list) -> list:
     return recent
 
 
+def render_template(template: str, **placeholders) -> str:
+    """Applica il template e ripulisce le righe vuote lasciate dai campi vuoti."""
+    return re.sub(r'\n{3,}', '\n\n', template.format(**placeholders)).strip()
+
+
 def build_publishers() -> dict:
     """Costruisce le funzioni di pubblicazione per ogni output.
 
@@ -102,13 +108,14 @@ def build_publishers() -> dict:
     from hugo_helper import HugoHelper
 
     def publish_mastodon(title, link, notes):
-        message = os.environ["MASTODON_MESSAGE_TEMPLATE"].format(
-            title=title, link=link, notes=notes)
+        message = render_template(os.environ["MASTODON_MESSAGE_TEMPLATE"],
+                                  title=title, link=link, notes=notes)
         MastodonHelper().post(message)
 
     def publish_telegram(title, link, notes):
-        message = os.environ["TELEGRAM_MESSAGE_TEMPLATE"].format(
-            title=escape_markdown(title), link=link, notes=escape_markdown(notes))
+        message = render_template(os.environ["TELEGRAM_MESSAGE_TEMPLATE"],
+                                  title=escape_markdown(title), link=link,
+                                  notes=escape_markdown(notes))
         TelegramHelper().send(message)
 
     def publish_hugo(title, link, notes):
@@ -141,7 +148,9 @@ def process_links(links, state, publishers) -> int:
         article_id = str(article["id"])
         title = article.get("title") or ""
         link = article.get("url") or ""
-        notes = article.get("summary") or ""
+        # {notes} = prima nota presa in GoodLinks, iniettata in main()
+        # (NON il summary: quello lo mostra già l'anteprima del link)
+        notes = article.get("notes") or ""
 
         done = state.setdefault(article_id, [])
         pending = [name for name in publishers if name not in done]
@@ -168,15 +177,18 @@ def main():
 
     from goodlinks import GoodLinks
 
+    gl = GoodLinks()
     try:
-        links = GoodLinks().get_links_to_publish()
+        links = filter_recent(gl.get_links_to_publish())
+        # {notes} = prima nota presa sull'articolo in GoodLinks
+        for article in links:
+            article["notes"] = gl.get_first_note(str(article["id"]))
     except Exception as e:
         # GoodLinks non raggiungibile (app chiusa o API disabilitata):
         # errore loggato, exit senza toccare lo stato.
         logger.error(f"Impossibile leggere l'API GoodLinks: {e}")
         sys.exit(1)
 
-    links = filter_recent(links)
     if not links:
         logger.debug("Nessun articolo recente con tag 'publish' trovato.")
         return

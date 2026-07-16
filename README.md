@@ -78,9 +78,10 @@ Vedi `config.example.env` per tutte le variabili:
 | `BLOG_REPO` | Repo del blog su GitHub (`owner/repo`); commentarla mette in pausa l'output Hugo |
 | `BLOG_REPO_TOKEN` | PAT GitHub con scrittura sul repo del blog |
 
-I template supportano i placeholder `{title}`, `{notes}`, `{link}`. Su Mastodon
-e Telegram `{notes}` è sconsigliato: l'anteprima del link mostra già la
-descrizione dell'articolo.
+I template supportano i placeholder `{title}`, `{notes}`, `{link}`. `{notes}`
+è la **prima nota** (l'highlight più vecchio) presa sull'articolo in GoodLinks —
+non la descrizione, che l'anteprima del link mostra già. Articolo senza
+highlight → `{notes}` vuoto, e le righe vuote residue vengono ripulite.
 
 ## Esecuzione automatica (launchd)
 
