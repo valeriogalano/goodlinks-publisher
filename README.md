@@ -24,6 +24,24 @@ Lo script gira sul Mac via `launchd` ogni ora nelle ore diurne (8:20–20:20):
 Un output che fallisce non blocca gli altri. Exit code non-zero se almeno una
 pubblicazione è fallita.
 
+## Prevenzione dei duplicati
+
+Vengono pubblicati **solo gli articoli nuovi**, mai il backlog storico, grazie
+a due protezioni indipendenti:
+
+1. **Stato per-output** — `published_ids.json` mappa ogni id articolo sugli
+   output già completati; un articolo presente con tutti gli output viene
+   sempre saltato. Al primo avvio lo stato è stato seedato con l'intero
+   backlog (223 articoli già pubblicati dalla vecchia pipeline Readwise).
+2. **Finestra di 7 giorni** — come i vecchi script `readwise-to-*`
+   (`updatedAfter`): vengono considerati solo gli articoli con `modifiedAt`
+   (o `addedAt`) negli ultimi 7 giorni. Anche con stato corrotto, vuoto o
+   cancellato, gli articoli vecchi non vengono mai ripubblicati.
+
+Taggare `publish` un articolo aggiorna il suo `modifiedAt`, quindi anche un
+articolo salvato mesi fa rientra nella finestra nel momento in cui viene
+taggato: è questo il gesto che lo manda in pubblicazione.
+
 ## Requisiti
 
 - macOS con [GoodLinks](https://goodlinks.app) 3.2+ e API locale abilitata (Impostazioni → API)
@@ -65,8 +83,17 @@ cp com.valeriogalano.goodlinks-publisher.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.valeriogalano.goodlinks-publisher.plist
 ```
 
-Lo script viene eseguito ogni ora. Log in `logs/goodlinks-publisher.log`
-(con rotazione) e `logs/launchd.log`.
+La **schedulazione è configurata nel plist** (`StartCalendarInterval`): ogni
+ora al minuto 20, solo nelle ore diurne (8:20–20:20). Per cambiare gli orari,
+modificare il plist nel repo e reinstallarlo:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.valeriogalano.goodlinks-publisher.plist
+cp com.valeriogalano.goodlinks-publisher.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.valeriogalano.goodlinks-publisher.plist
+```
+
+Log in `logs/goodlinks-publisher.log` (con rotazione) e `logs/launchd.log`.
 
 ## Uso manuale
 
