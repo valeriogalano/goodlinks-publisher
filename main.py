@@ -114,11 +114,20 @@ def build_publishers() -> dict:
     def publish_hugo(title, link, notes):
         HugoHelper().publish(title, link, notes)
 
-    return {
+    publishers = {
         "mastodon": publish_mastodon,
         "telegram": publish_telegram,
         "hugo": publish_hugo,
     }
+
+    # Output Hugo in pausa: senza BLOG_REPO nel .env viene saltato del tutto
+    # (gli articoli restano pendenti su hugo e verranno recuperati alla
+    # riattivazione, se ancora dentro la finestra dei 7 giorni).
+    if not os.environ.get("BLOG_REPO"):
+        logger.warning("BLOG_REPO non impostato: output hugo disabilitato.")
+        del publishers["hugo"]
+
+    return publishers
 
 
 def process_links(links, state, publishers) -> int:

@@ -1,11 +1,16 @@
+import base64
 import logging
 import os
 import re
-import subprocess
 from datetime import datetime, timezone
-from pathlib import Path
+
+import requests
 
 logger = logging.getLogger("hugo")
+
+# ponytail: GitHub API oggi, Forgejo API quando il blog migra su Codeberg
+# (stesso endpoint contents, cambia solo base URL e auth header)
+API_URL = "https://api.github.com"
 
 
 def slugify(text: str) -> str:
@@ -14,49 +19,56 @@ def slugify(text: str) -> str:
 
 
 class HugoHelper:
+    """Crea il post come commit diretto sul repo remoto del blog via API.
+
+    Il commit via API (con PAT) fa scattare la CI del blog, che builda e
+    deploya. Nessuna dipendenza dallo stato del clone locale.
+    """
+
     def __init__(self):
-        self.repo_path = Path(os.environ["BLOG_REPO_PATH"])
-        # ponytail: sezione content/links/ fissa; se il blog vorrà un'altra
-        # sezione o un archetype diverso, basta cambiare qui
-        self.content_dir = self.repo_path / "content" / "links"
+        self.repo = os.environ["BLOG_REPO"]  # es. valeriogalano/pensieriincodice-website
+        self.token = os.environ["BLOG_REPO_TOKEN"]
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/vnd.github+json",
+        }
 
         logger.debug("Hugo helper inizializzato!")
 
-    def __git(self, *args):
-        result = subprocess.run(
-            ["git", "-C", str(self.repo_path), *args],
-            capture_output=True, text=True,
-        )
-        if result.returncode != 0:
-            raise Exception(f"git {' '.join(args)} fallito: {result.stderr.strip()}")
-        return result.stdout
-
     def publish(self, title: str, link: str, notes: str):
-        """Scrive il post nel repo del blog e fa commit + push.
+        """Idempotente: se il file esiste già sul repo remoto, non fa nulla."""
+        path = f"content/blog/{slugify(title)}.md"
+        url = f"{API_URL}/repos/{self.repo}/contents/{path}"
 
-        Idempotente: se il file esiste già (push fallito al giro precedente),
-        non riscrive né ricommitta, ritenta solo il push.
-        """
-        self.__git("pull", "--ff-only")
+        existing = requests.get(url, headers=self.headers)
+        if existing.status_code == 200:
+            logger.debug(f"Post già presente sul repo remoto: {path}")
+            return
 
-        post_path = self.content_dir / f"{slugify(title)}.md"
-        if not post_path.exists():
-            self.content_dir.mkdir(parents=True, exist_ok=True)
-            date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S%z')
-            escaped_title = title.replace('"', '\\"')
-            frontmatter = (
-                "---\n"
-                f'title: "{escaped_title}"\n'
-                f"date: {date}\n"
-                f"link: {link}\n"
-                "---\n"
-            )
-            post_path.write_text(frontmatter + f"\n{notes}\n", encoding="utf-8")
-            relative_path = post_path.relative_to(self.repo_path)
-            self.__git("add", str(relative_path))
-            self.__git("commit", "-m", f"Add shared link: {title}")
-            logger.debug(f"Post creato e committato: {relative_path}")
-        else:
-            logger.debug(f"Post già presente, ritento solo il push: {post_path.name}")
+        date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S+00:00')
+        escaped_title = title.replace('"', '\\"')
+        content = (
+            "---\n"
+            f'title: "{escaped_title}"\n'
+            f"date: {date}\n"
+            "tags:\n"
+            "- Link condivisi\n"
+            "categories:\n"
+            "- News\n"
+            "type: blog\n"
+            "author: Valerio Galano\n"
+            "---\n"
+            "\n"
+            f"{notes}\n"
+            "\n"
+            f"[Leggi l'articolo originale]({link})\n"
+        )
 
-        self.__git("push")
+        response = requests.put(url, headers=self.headers, json={
+            "message": f"Add shared link: {title}",
+            "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+        })
+        if response.status_code not in (200, 201):
+            raise Exception(f"Creazione post fallita: {response.status_code} {response.text[:200]}")
+
+        logger.debug(f"Post creato sul repo remoto: {path}")

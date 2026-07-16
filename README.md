@@ -16,7 +16,10 @@ Lo script gira sul Mac via `launchd` ogni ora nelle ore diurne (8:20–20:20):
 4. per ogni articolo nuovo fa fan-out sui tre output:
    - **Mastodon** — post con template configurabile;
    - **Telegram** — messaggio MarkdownV2 su una o più chat;
-   - **Hugo** — file `.md` in `content/links/` del repo del blog, con commit + push (build e deploy restano alla CI del blog);
+   - **Hugo** — post `.md` in `content/blog/` (tag `Link condivisi`) creato come
+     commit **direttamente sul repo remoto via API GitHub**: il commit fa
+     scattare la CI del blog che builda e deploya. Per mettere in pausa questo
+     output basta commentare `BLOG_REPO` nel `.env`;
 5. aggiorna lo stato per output solo a pubblicazione riuscita: in caso di
    fallimento parziale, al giro successivo viene ritentato solo l'output
    mancante, senza duplicati.
@@ -48,7 +51,7 @@ taggato: è questo il gesto che lo manda in pubblicazione.
 - Python 3.11+
 - Un bot Telegram (creabile tramite [@BotFather](https://t.me/botfather))
 - Un access token Mastodon (Preferences → Development sulla propria istanza)
-- Il repo Hugo del blog clonato in locale, con push configurato
+- Un PAT GitHub con permesso di scrittura sul repo del blog
 
 ## Installazione
 
@@ -72,7 +75,8 @@ Vedi `config.example.env` per tutte le variabili:
 | `TELEGRAM_BOT_API_KEY` | Token del bot Telegram |
 | `TELEGRAM_CHAT_IDS` | Chat ID separati da virgola |
 | `TELEGRAM_MESSAGE_TEMPLATE` | Template del messaggio Telegram |
-| `BLOG_REPO_PATH` | Percorso locale del repo Hugo del blog |
+| `BLOG_REPO` | Repo del blog su GitHub (`owner/repo`); commentarla mette in pausa l'output Hugo |
+| `BLOG_REPO_TOKEN` | PAT GitHub con scrittura sul repo del blog |
 
 I template supportano i placeholder `{title}`, `{notes}`, `{link}`.
 
@@ -114,8 +118,9 @@ python -m pytest
   locale è disabilitata. Aprire GoodLinks e verificare Impostazioni → API.
 - **Errore Telegram su una sola chat** — un chat ID errato viene loggato ma non
   blocca l'invio alle altre chat; correggere `TELEGRAM_CHAT_IDS`.
-- **Push sul blog fallito** — il commit resta locale nel repo del blog; al giro
-  successivo viene ritentato solo il push, senza duplicare il post.
+- **Creazione post sul blog fallita** — errore API GitHub loggato (token scaduto
+  o permessi mancanti); al giro successivo viene ritentato solo l'output hugo.
+  Se il file esiste già sul repo remoto, il retry non crea duplicati.
 - **Articolo duplicato dopo modifica manuale dello stato** — `published_ids.json`
   è la fonte di verità: rimuovere un output dalla voce di un articolo ne causa
   la ripubblicazione su quell'output.
