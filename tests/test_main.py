@@ -206,24 +206,56 @@ class TestGoodLinks:
 
 
 class TestHugoHelper:
-    def test_publish_is_idempotent_on_existing_file(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("BLOG_REPO_PATH", str(tmp_path))
+    def _helper(self, monkeypatch):
+        monkeypatch.setenv("BLOG_REPO", "owner/blog")
+        monkeypatch.setenv("BLOG_REPO_TOKEN", "token")
         from hugo_helper import HugoHelper
-        helper = HugoHelper()
-        git_calls = []
+        return HugoHelper()
+
+    def test_publish_creates_post_via_api(self, monkeypatch):
+        import base64
+        helper = self._helper(monkeypatch)
+        puts = []
+
+        def fake_get(url, headers):
+            return MagicMock(status_code=404)
+
+        def fake_put(url, headers, json):
+            puts.append((url, json))
+            return MagicMock(status_code=201)
+
+        monkeypatch.setattr("hugo_helper.requests.get", fake_get)
+        monkeypatch.setattr("hugo_helper.requests.put", fake_put)
+        helper.publish("Un titolo di prova!", "https://example.com", "note")
+
+        url, payload = puts[0]
+        assert url.endswith("/repos/owner/blog/contents/content/blog/un-titolo-di-prova.md")
+        content = base64.b64decode(payload["content"]).decode()
+        assert 'title: "Un titolo di prova!"' in content
+        assert "- Link condivisi" in content
+        assert "[Leggi l'articolo originale](https://example.com)" in content
+
+    def test_publish_is_idempotent_on_existing_file(self, monkeypatch):
+        helper = self._helper(monkeypatch)
         monkeypatch.setattr(
-            helper, "_HugoHelper__git", lambda *a: git_calls.append(a))
-
+            "hugo_helper.requests.get", lambda url, headers: MagicMock(status_code=200))
+        monkeypatch.setattr(
+            "hugo_helper.requests.put",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("non deve chiamare PUT")))
         helper.publish("Un titolo di prova!", "https://example.com", "note")
-        post = tmp_path / "content" / "links" / "un-titolo-di-prova.md"
-        assert post.exists()
-        assert "title: \"Un titolo di prova!\"" in post.read_text()
-        assert ("push",) in git_calls
 
-        # secondo giro (es. push fallito in precedenza): niente nuovo commit
-        git_calls.clear()
-        helper.publish("Un titolo di prova!", "https://example.com", "note")
-        assert git_calls == [("pull", "--ff-only"), ("push",)]
+    def test_api_error_raises(self, monkeypatch):
+        helper = self._helper(monkeypatch)
+        monkeypatch.setattr(
+            "hugo_helper.requests.get", lambda url, headers: MagicMock(status_code=404))
+        monkeypatch.setattr(
+            "hugo_helper.requests.put",
+            lambda url, headers, json: MagicMock(status_code=422, text="boom"))
+        try:
+            helper.publish("Titolo", "https://example.com", "note")
+            assert False, "doveva sollevare"
+        except Exception as e:
+            assert "422" in str(e)
 
     def test_slugify(self):
         from hugo_helper import slugify
