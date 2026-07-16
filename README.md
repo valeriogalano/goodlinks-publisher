@@ -6,15 +6,18 @@ Readwise (`readwise-to-mastodon` + `readwise-to-telegram`).
 
 ## Come funziona
 
-Lo script gira sul Mac ogni ora via `launchd`:
+Lo script gira sul Mac via `launchd` ogni ora nelle ore diurne (8:20–20:20):
 
 1. legge l'[API locale di GoodLinks](https://goodlinks.app/api/) (`localhost:9428`) filtrando per tag `publish`;
-2. confronta gli articoli trovati con lo stato in `published_ids.json` (mappa `id articolo → output completati`);
-3. per ogni articolo nuovo fa fan-out sui tre output:
+2. tiene solo gli articoli modificati negli ultimi 7 giorni (il tagging aggiorna
+   `modifiedAt`): i vecchi articoli non vengono mai ripubblicati, anche con lo
+   stato corrotto;
+3. confronta gli articoli trovati con lo stato in `published_ids.json` (mappa `id articolo → output completati`);
+4. per ogni articolo nuovo fa fan-out sui tre output:
    - **Mastodon** — post con template configurabile;
    - **Telegram** — messaggio MarkdownV2 su una o più chat;
    - **Hugo** — file `.md` in `content/links/` del repo del blog, con commit + push (build e deploy restano alla CI del blog);
-4. aggiorna lo stato per output solo a pubblicazione riuscita: in caso di
+5. aggiorna lo stato per output solo a pubblicazione riuscita: in caso di
    fallimento parziale, al giro successivo viene ritentato solo l'output
    mancante, senza duplicati.
 

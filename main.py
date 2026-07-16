@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -12,6 +13,11 @@ STATE_FILE = BASE_DIR / "published_ids.json"
 LOG_FILE = BASE_DIR / "logs" / "goodlinks-publisher.log"
 
 OUTPUTS = ("mastodon", "telegram", "hugo")
+
+# Come i vecchi script readwise-to-*: considera solo gli articoli toccati di
+# recente. Difesa in profondità oltre allo stato: anche con published_ids.json
+# corrotto o vuoto, i vecchi articoli non vengono mai ripubblicati.
+RECENT_WINDOW_DAYS = 7
 
 logger = logging.getLogger("main")
 
@@ -65,6 +71,24 @@ def escape_markdown(text_to_escape):
     })
 
     return text_to_escape.translate(translate_table)
+
+
+def filter_recent(links: list) -> list:
+    """Tiene solo i link modificati negli ultimi RECENT_WINDOW_DAYS giorni.
+
+    Il tagging aggiorna modifiedAt, quindi un articolo vecchio taggato oggi
+    rientra. Link senza timestamp vengono scartati (scelta conservativa).
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=RECENT_WINDOW_DAYS)
+    recent = []
+    for link in links:
+        timestamp = link.get("modifiedAt") or link.get("addedAt")
+        if not timestamp:
+            logger.warning(f"Link senza timestamp, scartato: {link.get('id')}")
+            continue
+        if datetime.fromisoformat(timestamp) >= cutoff:
+            recent.append(link)
+    return recent
 
 
 def build_publishers() -> dict:
@@ -143,8 +167,9 @@ def main():
         logger.error(f"Impossibile leggere l'API GoodLinks: {e}")
         sys.exit(1)
 
+    links = filter_recent(links)
     if not links:
-        logger.debug("Nessun articolo con tag 'publish' trovato.")
+        logger.debug("Nessun articolo recente con tag 'publish' trovato.")
         return
 
     state = load_state()
