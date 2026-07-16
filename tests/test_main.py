@@ -182,6 +182,44 @@ class TestFilterRecent:
         assert len(filter_recent([{"id": "1", "addedAt": self.iso(2)}])) == 1
 
 
+class TestBackupState:
+    @staticmethod
+    def fake_git(calls, fail_on=None):
+        def run(args, capture_output, text):
+            cmd = args[3]  # git -C <dir> <cmd> ...
+            calls.append(cmd)
+            rc = 1 if cmd == fail_on else 0
+            return MagicMock(returncode=rc, stderr="boom")
+        return run
+
+    def test_no_changes_no_commit(self, monkeypatch):
+        from main import backup_state
+        calls = []
+        # diff --quiet ritorna 0 = nessuna modifica
+        monkeypatch.setattr("main.subprocess.run", self.fake_git(calls))
+        backup_state()
+        assert calls == ["diff"]
+
+    def test_changes_are_committed_and_pushed(self, monkeypatch):
+        from main import backup_state
+        calls = []
+        monkeypatch.setattr("main.subprocess.run", self.fake_git(calls, fail_on="diff"))
+        backup_state()
+        assert calls == ["diff", "add", "commit", "push"]
+
+    def test_push_failure_only_warns(self, monkeypatch):
+        from main import backup_state
+        calls = []
+        def run(args, capture_output, text):
+            cmd = args[3]
+            calls.append(cmd)
+            rc = 1 if cmd in ("diff", "push") else 0
+            return MagicMock(returncode=rc, stderr="no network")
+        monkeypatch.setattr("main.subprocess.run", run)
+        backup_state()  # non deve sollevare
+        assert calls == ["diff", "add", "commit", "push"]
+
+
 class TestNotifyFailure:
     def test_calls_osascript_with_escaped_quotes(self, monkeypatch):
         from main import notify_failure

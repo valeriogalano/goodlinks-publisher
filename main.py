@@ -93,6 +93,31 @@ def filter_recent(links: list) -> list:
     return recent
 
 
+def backup_state() -> None:
+    """Committa e pusha published_ids.json: backup automatico e versionato.
+
+    Va direttamente su main: è un dato operativo, non codice. Best-effort:
+    un errore viene loggato ma non fa fallire l'esecuzione (al giro dopo
+    il diff c'è ancora e il backup viene ritentato).
+    """
+    def git(*args):
+        return subprocess.run(["git", "-C", str(BASE_DIR), *args],
+                              capture_output=True, text=True)
+
+    if git("diff", "--quiet", "--", "published_ids.json").returncode == 0:
+        return  # stato invariato, niente da salvare
+
+    for args in (("add", "published_ids.json"),
+                 ("commit", "-m", "chore: aggiorna stato pubblicazioni"),
+                 ("push",)):
+        result = git(*args)
+        if result.returncode != 0:
+            logger.warning(
+                f"Backup stato fallito su 'git {args[0]}': {result.stderr.strip()}")
+            return
+    logger.debug("Stato committato e pushato.")
+
+
 def notify_failure(message: str) -> None:
     """Notifica macOS in caso di errore: launchd non avvisa nessuno da solo.
 
@@ -207,12 +232,14 @@ def main():
         notify_failure("GoodLinks non raggiungibile: app chiusa o API disabilitata?")
         sys.exit(1)
 
-    if not links:
+    if links:
+        state = load_state()
+        failures = process_links(links, state, build_publishers())
+    else:
         logger.debug("Nessun articolo recente con tag 'publish' trovato.")
-        return
+        failures = 0
 
-    state = load_state()
-    failures = process_links(links, state, build_publishers())
+    backup_state()
 
     if failures:
         logger.error(f"Esecuzione terminata con {failures} pubblicazioni fallite.")

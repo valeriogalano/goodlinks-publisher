@@ -36,6 +36,11 @@ a due protezioni indipendenti:
    output già completati; un articolo presente con tutti gli output viene
    sempre saltato. Al primo avvio lo stato è stato seedato con l'intero
    backlog (223 articoli già pubblicati dalla vecchia pipeline Readwise).
+   A fine esecuzione, se lo stato è cambiato, viene **committato e pushato
+   automaticamente** su Codeberg (backup versionato, direttamente su `main`:
+   è un dato operativo, non codice). Richiede la passphrase della chiave SSH
+   nel keychain (`UseKeychain yes` in `~/.ssh/config`), perché launchd non ha
+   ssh-agent.
 2. **Finestra di 7 giorni** — come i vecchi script `readwise-to-*`
    (`updatedAfter`): vengono considerati solo gli articoli con `modifiedAt`
    (o `addedAt`) negli ultimi 7 giorni. Anche con stato corrotto, vuoto o
