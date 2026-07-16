@@ -182,6 +182,24 @@ class TestFilterRecent:
         assert len(filter_recent([{"id": "1", "addedAt": self.iso(2)}])) == 1
 
 
+class TestNotifyFailure:
+    def test_calls_osascript_with_escaped_quotes(self, monkeypatch):
+        from main import notify_failure
+        calls = []
+        monkeypatch.setattr("main.subprocess.run",
+                            lambda args, check: calls.append(args))
+        notify_failure('errore "grave"')
+        assert calls[0][0] == "osascript"
+        assert "errore 'grave'" in calls[0][2]
+
+    def test_never_raises(self, monkeypatch):
+        from main import notify_failure
+        def boom(*a, **k):
+            raise OSError("osascript mancante")
+        monkeypatch.setattr("main.subprocess.run", boom)
+        notify_failure("x")  # non deve sollevare
+
+
 class TestRenderTemplate:
     def test_empty_notes_leave_no_blank_gap(self):
         from main import render_template
