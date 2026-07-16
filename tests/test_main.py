@@ -1,8 +1,9 @@
 import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import main
-from main import escape_markdown, load_state, save_state, process_links
+from main import escape_markdown, filter_recent, load_state, save_state, process_links
 
 
 class TestEscapeMarkdown:
@@ -155,6 +156,30 @@ class TestTelegramMultiChat:
             assert False, "doveva sollevare"
         except Exception as e:
             assert "tutte le chat" in str(e)
+
+
+class TestFilterRecent:
+    @staticmethod
+    def iso(days_ago):
+        return (datetime.now(timezone.utc) - timedelta(days=days_ago)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    def test_old_articles_are_excluded(self):
+        links = [
+            {"id": "old", "modifiedAt": self.iso(30)},
+            {"id": "new", "modifiedAt": self.iso(1)},
+        ]
+        assert [l["id"] for l in filter_recent(links)] == ["new"]
+
+    def test_old_article_tagged_today_is_included(self):
+        # il tagging aggiorna modifiedAt: articolo salvato mesi fa, taggato oggi
+        links = [{"id": "1", "addedAt": self.iso(200), "modifiedAt": self.iso(0)}]
+        assert len(filter_recent(links)) == 1
+
+    def test_missing_timestamps_are_excluded(self):
+        assert filter_recent([{"id": "x"}]) == []
+
+    def test_falls_back_to_added_at(self):
+        assert len(filter_recent([{"id": "1", "addedAt": self.iso(2)}])) == 1
 
 
 class TestGoodLinks:
