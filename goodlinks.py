@@ -14,18 +14,25 @@ class GoodLinks:
         logger.debug("GoodLinks inizializzato!")
 
     def get_links_to_publish(self, tag="publish"):
-        """Recupera i link con il tag specificato dall'API locale di GoodLinks.
+        """Recupera i link con il tag specificato dall'API locale di GoodLinks."""
+        return self._get_links(tag=tag)
 
-        La risposta è paginata: {"data": [...], "hasMore": bool}.
-        """
+    def get_all_links(self):
+        """Recupera tutti i link, senza filtro tag (usato dall'archiviazione)."""
+        return self._get_links(tag=None)
+
+    def _get_links(self, tag=None):
+        """La risposta è paginata: {"data": [...], "hasMore": bool}."""
         url = f"{self.api_url}/links"
         headers = {"Authorization": f"Bearer {self.token}"}
 
         links = []
         offset = 0
         while True:
-            response = requests.get(
-                url, headers=headers, params={"tag": tag, "offset": offset})
+            params = {"offset": offset}
+            if tag:
+                params["tag"] = tag
+            response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()
 
             payload = response.json()
@@ -34,8 +41,17 @@ class GoodLinks:
                 break
             offset = len(links)
 
-        logger.debug(f"Link trovati con tag '{tag}': {len(links)}")
+        logger.debug(f"Link trovati (tag={tag}): {len(links)}")
         return links
+
+    def get_highlights(self, link_id: str) -> list:
+        """Tutti gli highlight di un link (con `content`, `note`, `createdAt`)."""
+        url = f"{self.api_url}/highlights"
+        headers = {"Authorization": f"Bearer {self.token}"}
+
+        response = requests.get(url, headers=headers, params={"linkID": link_id})
+        response.raise_for_status()
+        return response.json()["data"]
 
     def get_first_note(self, link_id: str) -> str:
         """Ritorna la prima nota (highlight più vecchio) presa sull'articolo.

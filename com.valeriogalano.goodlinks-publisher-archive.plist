@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.valeriogalano.goodlinks-publisher-archive</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/valeriogalano/PycharmProjects/goodlinks-publisher/.venv/bin/python</string>
+        <string>/Users/valeriogalano/PycharmProjects/goodlinks-publisher/archive.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/valeriogalano/PycharmProjects/goodlinks-publisher</string>
+    <!-- 2 volte al giorno: mattina (7:30) e sera (21:30), fuori dalla finestra
+         del publisher (8:20-20:20) per non contendere l'API GoodLinks -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>30</integer></dict>
+    </array>
+    <key>StandardOutPath</key>
+    <string>/Users/valeriogalano/PycharmProjects/goodlinks-publisher/logs/launchd-archive.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/valeriogalano/PycharmProjects/goodlinks-publisher/logs/launchd-archive.log</string>
+</dict>
+</plist>

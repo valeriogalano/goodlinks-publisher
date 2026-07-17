@@ -82,6 +82,8 @@ Vedi `config.example.env` per tutte le variabili:
 | `TELEGRAM_MESSAGE_TEMPLATE` | Template del messaggio Telegram |
 | `BLOG_REPO` | Repo del blog su GitHub (`owner/repo`); commentarla mette in pausa l'output Hugo |
 | `BLOG_REPO_TOKEN` | PAT GitHub con scrittura sul repo del blog |
+| `OBSIDIAN_API_KEY` | API key della Local REST API di Obsidian (per `archive.py`) |
+| `OBSIDIAN_API_URL` | URL della Local REST API (opzionale, default `https://127.0.0.1:27124`) |
 
 I template supportano i placeholder `{title}`, `{notes}`, `{link}`. `{notes}`
 è la **prima nota** (l'highlight più vecchio) presa sull'articolo in GoodLinks —
@@ -107,11 +109,56 @@ launchctl load ~/Library/LaunchAgents/com.valeriogalano.goodlinks-publisher.plis
 
 Log in `logs/goodlinks-publisher.log` (con rotazione) e `logs/launchd.log`.
 
+## Archiviazione nel vault Obsidian
+
+`archive.py` è un job **separato** dalla pubblicazione: replica la funzione che
+il plugin `readwise-official` faceva su Readwise, ovvero salvare gli articoli
+con annotazioni nel vault Obsidian. È indipendente dagli output Mastodon/Telegram/Hugo.
+
+Per ogni link GoodLinks con **almeno un highlight** crea/aggiorna due note:
+
+- `3.Risorse/Articoli/<titolo>.md` — metadata + highlights (con eventuali note);
+- `3.Risorse/Full Document Contents/Articoli/<titolo>.md` — testo integrale
+  estratto con [trafilatura](https://trafilatura.readthedocs.io/) (locale, niente cloud).
+
+Caratteristiche:
+
+1. **Nessun file di stato**: il vault è la fonte di verità. L'idempotenza si
+   basa sul match per **URL normalizzato** (strip di `utm_*` e altri parametri
+   di tracking) letto dal blocco `## Metadata` delle note esistenti.
+2. **Skip + append** sulle collisioni con le ~400 note storiche di Readwise: se
+   l'URL è già presente, la nota non viene ricreata; i nuovi highlight GoodLinks
+   vengono appesi in una sezione `## Highlights (GoodLinks)`. Il full content
+   viene creato solo se non esiste già.
+3. **Best-effort**: gli errori per-articolo sono loggati e non fermano il giro
+   (exit 0). Se trafilatura fallisce (paywall, JS-heavy) il full content viene
+   saltato ma la nota highlights è creata comunque. Se GoodLinks non è
+   raggiungibile: exit 1 con notifica macOS, nessuna scrittura sul vault.
+
+Richiede il plugin **Local REST API** di Obsidian abilitato e la sua API key in
+`OBSIDIAN_API_KEY` (vedi `config.example.env`). Obsidian deve essere aperto.
+
+Prova a secco (legge tutto, non scrive nulla):
+
+```bash
+python archive.py --dry-run
+```
+
+Schedulazione launchd, **2 volte al giorno** (7:30 e 21:30):
+
+```bash
+cp com.valeriogalano.goodlinks-publisher-archive.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.valeriogalano.goodlinks-publisher-archive.plist
+```
+
+Log in `logs/goodlinks-publisher.log` e `logs/launchd-archive.log`.
+
 ## Uso manuale
 
 ```bash
 source .venv/bin/activate
-python main.py
+python main.py       # pubblicazione (Mastodon/Telegram/Hugo)
+python archive.py    # archiviazione nel vault Obsidian
 ```
 
 ## Test
