@@ -1,4 +1,4 @@
 requests==2.32.4
-python-dotenv==1.1.1
+python-dotenv==1.2.2
 trafilatura==2.1.0
 pytest
